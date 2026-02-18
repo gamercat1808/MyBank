@@ -13,6 +13,7 @@ def init_db():
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT NOT NULL UNIQUE,
+        points INTEGER DEFAULT 0,
         password TEXT NOT NULL)
 """)
 
@@ -45,6 +46,44 @@ def delete_user():
     c.execute("DELETE FROM users WHERE username = ?", (username,))
     conn.commit()
     return jsonify({"message": "User deleted successfully!"}), 200
+
+@app.route("/api/give", methods=["POST"])
+def give_points():
+    data = request.get_json()
+    from_user = data["from_user"]
+    to_user = data["to_user"]
+    points = data["points"]
+    
+    c.execute("SELECT points FROM users WHERE username = ?", (from_user,))
+    from_points = c.fetchone()
+    
+    if from_points and from_points[0] >= points:
+        c.execute("UPDATE users SET points = points - ? WHERE username = ?", (points, from_user))
+        c.execute("UPDATE users SET points = points + ? WHERE username = ?", (points, to_user))
+        conn.commit()
+        return jsonify({"message": "Points transferred successfully!"}), 200
+    else:
+        return jsonify({"message": "Insufficient points!"}), 400
+    
+@app.route("/api/admin/give", methods=["POST"])
+def admin_give_points():
+    data = request.get_json()
+    to_user = data["to_user"]
+    points = data["points"]
+    
+    c.execute("UPDATE users SET points = points + ? WHERE username = ?", (points, to_user))
+    conn.commit()
+    return jsonify({"message": "Points added successfully!"}), 200
+
+@app.route("/api/admin/balance/<username>")
+def admin_balance(username):
+    c.execute("SELECT points FROM users WHERE username = ?", (username,))
+    result = c.fetchone()
+    if result:
+        return jsonify({"username": username, "points": result[0]}), 200
+    else:
+        return jsonify({"message": "User not found!"}), 404
+    
 
 if __name__ == "__main__":
     init_db()
